@@ -1,0 +1,80 @@
+version: 3
+
+services:
+  # Cloud storage server
+  #nextcloud:
+  # IMAP mail server
+  #dovecot:
+  # SMTP proxy
+  #postfix:
+  # Mail downloader
+  #fetchmail:
+
+  # HTTP/S proxy for nextcloud and plex
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    read_only: true
+    volumes:
+      - nginx-cache:/var/cache/nginx
+      - nginx-pid:/var/run
+      - nginx-conf:/etc/nginx/conf.d:ro
+      - nginx-vhost:/etc/nginx/vhost.d:ro
+      - nginx-html:/usr/share/nginx/html:ro
+      - nginx-certs:/etc/nginx/certs:ro
+    network_mode: bridge
+
+  # generator of nginx configurations for docker containers
+  nginx-docker-gen:
+    image: jwilder/docker-gen
+    container_name: dockergen
+    command: -notify-sighup nginx -watch /etc/docker-gen/templates/nginx.tmpl /etc/nginx/conf.d/default.conf
+    read_only: true
+    volumes_from:
+      - nginx
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./nginx-proxy/nginx.tmpl:/etc/docker-gen/templates/nginx.tmpl
+    labels:
+      - "com.github.jrcs.letsencrypt_nginx_proxy_companion.docker_gen"
+    network_mode: bridge
+
+  # HTTPS certificate generator
+  letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: nginx-proxy-le
+    read_only: true
+    volumes_from:
+      - nginx-proxy
+    volumes:
+      - nginx-certs:/etc/nginx/certs:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    network_mode: bridge
+
+  # DNS server with local DNS override
+  #dnsmasq:
+  # Dynamic DNS daemon
+  #ddns:
+  # Media server
+  #plex:
+
+volumes:
+  # required to make nginx readonly
+  nginx-cache:
+  nginx-pid:
+  # required for communication between nginx and letsencrypt
+  nginx-conf:
+  nginx-certs:
+  nginx-vhost:
+  nginx-html:
+  # nextcloud volumes
+  #nextcloudconfig:
+  #drive:
+  # plex volumes
+  #plexconfig:
+  #media:
+  # Maildir mail storage for dovecot
+  #mail:
